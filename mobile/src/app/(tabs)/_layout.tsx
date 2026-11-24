@@ -46,7 +46,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="departments/[department]" options={{ href: null }} />
       <Tabs.Screen
         name="announcements"
         options={{

@@ -17,6 +17,10 @@ type QueueEntry = {
   appointment: Appointment;
 };
 
+// true when the date falls on today's calendar day (local time)
+const isToday = (dateString: string) =>
+  new Date(dateString).toDateString() === new Date().toDateString();
+
 const STATUS_STYLES: Record<
   string,
   { bg: string; text: string; label: string }
@@ -42,7 +46,10 @@ export default function Queue() {
       ]);
       setQueue(queueRes.data);
       setServing(
-        allRes.data.filter((a: Appointment) => a.status === "serving"),
+        allRes.data.filter(
+          (a: Appointment) =>
+            a.status === "serving" && isToday(a.preferredDate),
+        ),
       );
     } catch (err) {
       setError("Could not load queue.");
@@ -106,7 +113,7 @@ export default function Queue() {
         </div>
       </div>
       <p className="text-sm text-[#8A8DA3] mb-6">
-        View and manage the current service queue.
+        Today's appointments that are ready to be picked up.
       </p>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -134,7 +141,7 @@ export default function Queue() {
               <th className="px-5 py-3 font-medium">Student Name</th>
               <th className="px-5 py-3 font-medium">Student ID</th>
               <th className="px-5 py-3 font-medium">Service</th>
-              <th className="px-5 py-3 font-medium">Priority</th>
+              <th className="px-5 py-3 font-medium">Date & Time</th>
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium text-right">Actions</th>
             </tr>
@@ -155,7 +162,7 @@ export default function Queue() {
                   colSpan={7}
                   className="px-5 py-8 text-center text-[#8A8DA3]"
                 >
-                  Queue is empty.
+                  No appointments scheduled for today.
                 </td>
               </tr>
             ) : (
@@ -178,16 +185,11 @@ export default function Queue() {
                     <td className="px-5 py-3 text-[#1A1B25]">
                       {a.service?.name}
                     </td>
-                    <td className="px-5 py-3">
-                      {a.priorityTier === "urgent" ? (
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-red-100 text-red-600">
-                          Urgent
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-500">
-                          Normal
-                        </span>
-                      )}
+                    <td className="px-5 py-3 text-[#8A8DA3]">
+                      {new Date(a.preferredDate).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
                     </td>
                     <td className="px-5 py-3">
                       <span
@@ -211,7 +213,7 @@ export default function Queue() {
                           disabled={actingOn === a._id}
                           className="border border-[#E4E6F0] text-[#1A1B25] text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#F5F6FB] disabled:opacity-60"
                         >
-                          Call Next
+                          Confirm
                         </button>
                       )}
                     </td>

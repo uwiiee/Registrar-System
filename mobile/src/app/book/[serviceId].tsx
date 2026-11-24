@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,13 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import api from "@/lib/api";
 
 const COLORS = {
@@ -29,35 +33,40 @@ type Service = {
   department: string;
 };
 
-const TIME_SLOTS = [
-  "8:00 AM",
-  "8:30 AM",
-  "9:00 AM",
-  "9:30 AM",
-  "10:00 AM",
-  "10:30 AM",
-  "11:00 AM",
-  "11:30 AM",
-  "1:00 PM",
-  "1:30 PM",
-  "2:00 PM",
-  "2:30 PM",
-  "3:00 PM",
-  "3:30 PM",
-  "4:00 PM",
-  "4:30 PM",
-];
-
-// Next 7 days, skipping nothing for now (weekends included — office-hours logic can be added later)
-const getNextDays = (count: number) => {
-  const days = [];
-  for (let i = 1; i <= count; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-  return days;
+// Earliest bookable day: tomorrow (same rule as before — no same-day booking)
+const getTomorrow = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
 };
+
+// Default time shown in the picker: 9:00 AM
+const getDefaultTime = () => {
+  const t = new Date();
+  t.setHours(9, 0, 0, 0);
+  return t;
+};
+
+// Office hours (same as the old slot list): 8:00 AM–12:00 PM and 1:00 PM–4:30 PM
+const isWithinOfficeHours = (t: Date) => {
+  const mins = t.getHours() * 60 + t.getMinutes();
+  return (
+    (mins >= 8 * 60 && mins < 12 * 60) ||
+    (mins >= 13 * 60 && mins <= 16 * 60 + 30)
+  );
+};
+
+const formatDate = (d: Date) =>
+  d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const formatTime = (t: Date) =>
+  t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
 export default function BookAppointmentScreen() {
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
@@ -66,12 +75,10 @@ export default function BookAppointmentScreen() {
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<"datetime" | "confirm">("datetime");
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(getTomorrow());
+  const [selectedTime, setSelectedTime] = useState<Date>(getDefaultTime());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  const days = useMemo(() => getNextDays(7), []);
 
   useEffect(() => {
     const load = async () => {
@@ -87,20 +94,50 @@ export default function BookAppointmentScreen() {
     load();
   }, [serviceId]);
 
-  const handleConfirmBooking = async () => {
-    if (!selectedDate || !selectedSlot) return;
+  // Android opens the system calendar / clock dialogs
+  const openAndroidDatePicker = () =>
+    DateTimePickerAndroid.open({
+      value: selectedDate,
+      mode: "date",
+      minimumDate: getTomorrow(),
+      onChange: (_event, date) => {
+        if (date) setSelectedDate(date);
+      },
+    });
 
+  const openAndroidTimePicker = () =>
+    DateTimePickerAndroid.open({
+      value: selectedTime,
+      mode: "time",
+      is24Hour: false,
+      onChange: (_event, time) => {
+        if (time) setSelectedTime(time);
+      },
+    });
+
+  const handleNext = () => {
+    if (!isWithinOfficeHours(selectedTime)) {
+      setError(
+        "Please choose a time between 8:00 AM–12:00 PM or 1:00 PM–4:30 PM.",
+      );
+      return;
+    }
+    setError("");
+    setStep("confirm");
+  };
+
+  const handleConfirmBooking = async () => {
     setSubmitting(true);
     setError("");
     try {
-      // combine selected date + slot into one ISO datetime
-      const [time, meridiem] = selectedSlot.split(" ");
-      let [hours, minutes] = time.split(":").map(Number);
-      if (meridiem === "PM" && hours !== 12) hours += 12;
-      if (meridiem === "AM" && hours === 12) hours = 0;
-
+      // combine the chosen date + chosen time into one datetime
       const preferredDate = new Date(selectedDate);
-      preferredDate.setHours(hours, minutes, 0, 0);
+      preferredDate.setHours(
+        selectedTime.getHours(),
+        selectedTime.getMinutes(),
+        0,
+        0,
+      );
 
       await api.post("/appointments", {
         service: serviceId,
@@ -196,81 +233,72 @@ export default function BookAppointmentScreen() {
         {step === "datetime" && (
           <>
             <Text style={styles.sectionTitle}>Select Date</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 24 }}
-            >
-              {days.map((d) => {
-                const isSelected =
-                  selectedDate?.toDateString() === d.toDateString();
-                return (
-                  <Pressable
-                    key={d.toISOString()}
-                    style={[styles.dayChip, isSelected && styles.dayChipActive]}
-                    onPress={() => setSelectedDate(d)}
-                  >
-                    <Text
-                      style={[
-                        styles.dayChipWeekday,
-                        isSelected && styles.dayChipTextActive,
-                      ]}
-                    >
-                      {d.toLocaleDateString(undefined, { weekday: "short" })}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.dayChipNumber,
-                        isSelected && styles.dayChipTextActive,
-                      ]}
-                    >
-                      {d.getDate()}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {Platform.OS === "android" ? (
+              <Pressable
+                style={styles.pickerField}
+                onPress={openAndroidDatePicker}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.pickerFieldText}>
+                  {formatDate(selectedDate)}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.pickerCard}>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="inline"
+                  minimumDate={getTomorrow()}
+                  onChange={(_event, date) => {
+                    if (date) setSelectedDate(date);
+                  }}
+                />
+              </View>
+            )}
 
             <Text style={styles.sectionTitle}>Select Time</Text>
-            <View style={styles.slotGrid}>
-              {TIME_SLOTS.map((slot) => {
-                const isSelected = selectedSlot === slot;
-                return (
-                  <Pressable
-                    key={slot}
-                    style={[
-                      styles.slotChip,
-                      isSelected && styles.slotChipActive,
-                    ]}
-                    onPress={() => setSelectedSlot(slot)}
-                  >
-                    <Text
-                      style={[
-                        styles.slotText,
-                        isSelected && styles.dayChipTextActive,
-                      ]}
-                    >
-                      {slot}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {Platform.OS === "android" ? (
+              <Pressable
+                style={styles.pickerField}
+                onPress={openAndroidTimePicker}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.pickerFieldText}>
+                  {formatTime(selectedTime)}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.pickerCard}>
+                <DateTimePicker
+                  value={selectedTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={(_event, time) => {
+                    if (time) setSelectedTime(time);
+                  }}
+                />
+              </View>
+            )}
+            <Text style={styles.hoursHint}>
+              Office hours: 8:00 AM–12:00 PM and 1:00 PM–4:30 PM
+            </Text>
 
-            <Pressable
-              style={[
-                styles.button,
-                (!selectedDate || !selectedSlot) && styles.buttonDisabled,
-              ]}
-              disabled={!selectedDate || !selectedSlot}
-              onPress={() => setStep("confirm")}
-            >
+            <Pressable style={styles.button} onPress={handleNext}>
               <Text style={styles.buttonText}>Next</Text>
             </Pressable>
           </>
         )}
 
-        {step === "confirm" && selectedDate && selectedSlot && (
+        {step === "confirm" && (
           <>
             <Text style={styles.sectionTitle}>Confirm Details</Text>
             <View style={styles.confirmCard}>
@@ -285,12 +313,14 @@ export default function BookAppointmentScreen() {
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Date</Text>
                 <Text style={styles.confirmValue}>
-                  {selectedDate.toDateString()}
+                  {formatDate(selectedDate)}
                 </Text>
               </View>
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Time</Text>
-                <Text style={styles.confirmValue}>{selectedSlot}</Text>
+                <Text style={styles.confirmValue}>
+                  {formatTime(selectedTime)}
+                </Text>
               </View>
             </View>
 
@@ -398,6 +428,28 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   slotText: { fontSize: 13, color: COLORS.text },
+  pickerField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 50,
+    marginBottom: 20,
+  },
+  pickerFieldText: { marginLeft: 10, fontSize: 14, color: COLORS.text },
+  pickerCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: 8,
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  hoursHint: { fontSize: 12, color: COLORS.textMuted, marginBottom: 20 },
   confirmCard: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
