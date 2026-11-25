@@ -147,7 +147,7 @@ export default function AppointmentsScreen() {
           <Text style={styles.title}>{isStaff ? "Queue" : "Appointments"}</Text>
           <Text style={styles.subtitle}>
             {isStaff
-              ? "Live queue, ordered by priority and deadline"
+              ? "Today's queue, ordered by time"
               : "Book and manage your appointments"}
           </Text>
 
@@ -223,7 +223,7 @@ export default function AppointmentsScreen() {
 
           {isStaff && (
             <Text style={styles.sectionTitle}>
-              {upcoming.length} waiting — ordered by priority
+              {upcoming.length} waiting — ordered by time
             </Text>
           )}
 
@@ -258,11 +258,6 @@ export default function AppointmentsScreen() {
               <Text style={styles.cardMeta}>
                 {new Date(item.preferredDate).toLocaleDateString()}
               </Text>
-            </View>
-          )}
-          {isStaff && item.priorityTier === "urgent" && (
-            <View style={styles.urgentTag}>
-              <Text style={styles.urgentText}>Urgent</Text>
             </View>
           )}
         </View>

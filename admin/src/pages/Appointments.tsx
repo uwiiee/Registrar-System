@@ -189,7 +189,6 @@ export default function Appointments() {
               <th className="px-5 py-3 font-medium">Student ID</th>
               <th className="px-5 py-3 font-medium">Service</th>
               <th className="px-5 py-3 font-medium">Date & Time</th>
-              <th className="px-5 py-3 font-medium">Priority</th>
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium text-right">Actions</th>
             </tr>
@@ -198,7 +197,7 @@ export default function Appointments() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   className="px-5 py-8 text-center text-[#8A8DA3]"
                 >
                   Loading...
@@ -207,7 +206,7 @@ export default function Appointments() {
             ) : paginated.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   className="px-5 py-8 text-center text-[#8A8DA3]"
                 >
                   No appointments found.
@@ -235,17 +234,6 @@ export default function Appointments() {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
-                    </td>
-                    <td className="px-5 py-3">
-                      {a.priorityTier === "urgent" ? (
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-red-100 text-red-600">
-                          Urgent
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-500">
-                          Normal
-                        </span>
-                      )}
                     </td>
                     <td className="px-5 py-3">
                       <span
@@ -336,12 +324,6 @@ export default function Appointments() {
                 <span className="text-[#8A8DA3]">Date & Time</span>
                 <span className="font-medium text-[#1A1B25]">
                   {new Date(selected.preferredDate).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8A8DA3]">Priority</span>
-                <span className="font-medium text-[#1A1B25]">
-                  {selected.priorityTier}
                 </span>
               </div>
             </div>

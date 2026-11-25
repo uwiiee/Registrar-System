@@ -139,7 +139,6 @@ export default function Dashboard() {
                       <th className="py-2 font-medium">#</th>
                       <th className="py-2 font-medium">Student</th>
                       <th className="py-2 font-medium">Service</th>
-                      <th className="py-2 font-medium">Priority</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -156,9 +155,6 @@ export default function Dashboard() {
                         </td>
                         <td className="py-2 text-[#8A8DA3]">
                           {q.appointment.service?.name}
-                        </td>
-                        <td className="py-2 text-[#8A8DA3] capitalize">
-                          {q.appointment.priorityTier}
                         </td>
                       </tr>
                     ))}
